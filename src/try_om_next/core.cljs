@@ -4,13 +4,10 @@
 
 (enable-console-print!)
 
+(def app-state (atom {:counter 0}))
+
 (defn read
   [{:keys [state] :as env} key params]
-  (do ; additional debug
-    (println "Read called with:")
-    (println @state)
-    (println key)
-    (println params))
   (let [st @state]
     (if-let [[_ v] (find st key)]
       {:value v}
@@ -18,25 +15,38 @@
 
 (defn mutate
   [{:keys [state] :as env} key params]
-  (do ; additional debug
-    (println "Mutate called with:")
-    (println @state)
-    (println key)
-    (println params))
   (if (= 'increment key)
     {:value [:counter]
      :action #(swap! state update-in [:counter] inc)}
     {:value :not-found}))
 
-(def my-parser (om/parser {:read read :mutate mutate}))
+(defui Counter
+  static om/IQuery
+  (query
+    [this]
+    [:counter])
 
-(def my-state (atom {:counter 0}))
+  Object
+  (render
+    [this]
+    (let [{:keys [counter]} (om/props this)]
+      (dom/div
+        nil
+        (dom/span nil (str "Count: " counter))
+        (dom/button
+          #js {:onClick (fn [e]
+                          (om/transact! this '[(increment)]))}
+          "increment")))))
 
-(println (my-parser {:state my-state} [:counter :title]))
+(def reconciler
+  (om/reconciler
+    {:state app-state
+     :parser (om/parser {:read read :mutate mutate})}))
 
-(my-parser {:state my-state} '[(increment)])
-
-(println @my-state)
+(om/add-root! 
+  reconciler
+  Counter
+  (js/document.getElementById "app"))
 
 (defn on-js-reload []
   ;; optionally touch your app-state to force rerendering depending on
