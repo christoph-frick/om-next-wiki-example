@@ -4,35 +4,23 @@
 
 (enable-console-print!)
 
-(def app-state (atom {:count 0}))
+(defn read
+  [{:keys [state] :as env} key params]
+  (do ; additional debug
+    (println "Read called with:")
+    (println @state)
+    (println key)
+    (println params))
+  (let [st @state]
+    (if-let [[_ v] (find st key)]
+      {:value v}
+      {:value :not-found})))
 
-(defui Counter
-  Object
-  (render 
-    [this]
-    (let [{:keys [count]} (om/props this)]
-      (dom/div 
-        nil 
-        (dom/span nil (str "Count: " count))
-        (dom/button
-          #js {:onClick (fn [_]
-                          (swap! app-state update-in [:count] inc))}
-          "inc")))))
+(def my-parser (om/parser {:read read}))
 
-(def reconciler
-  (om/reconciler {:state app-state}))
+(def my-state (atom {:counter 0}))
 
-(om/add-root!
-  reconciler
-  Counter
-  (js/document.getElementById "app"))
-
-;;; fails to reload (e.g. change the number in the range)
-; Uncaught Error: Invariant Violation: processUpdates(): Unable to find child
-; 0 of element. This probably means the DOM was unexpectedly mutated (e.g., by
-; the browser), usually due to forgetting a <tbody> when using tables, nesting
-; tags like <form>, <p>, or <a>, or using non-SVG elements in an <svg> parent.
-; Try inspecting the child nodes of the element with React ID `.0`.
+(println (my-parser {:state my-state} [:counter :title]))
 
 (defn on-js-reload []
   ;; optionally touch your app-state to force rerendering depending on
