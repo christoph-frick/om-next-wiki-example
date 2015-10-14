@@ -4,17 +4,27 @@
 
 (enable-console-print!)
 
-(defui HelloWorld
+(def app-state (atom {:count 0}))
+
+(defui Counter
   Object
-  (render [this]
-          (dom/div nil (get (om/props this) :title))))
+  (render 
+    [this]
+    (let [{:keys [count]} (om/props this)]
+      (dom/div 
+        nil 
+        (dom/span nil (str "Count: " count))
+        (dom/button
+          #js {:onClick (fn [_]
+                          (swap! app-state update-in [:count] inc))}
+          "inc")))))
 
-(def app (om/factory HelloWorld))
+(def reconciler
+  (om/reconciler {:state app-state}))
 
-(js/React.render 
-  (apply dom/p nil
-         (map #(app {:title (str "Hello " %)})
-              (range 3)))
+(om/add-root!
+  reconciler
+  Counter
   (js/document.getElementById "app"))
 
 ;;; fails to reload (e.g. change the number in the range)
