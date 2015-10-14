@@ -4,49 +4,70 @@
 
 (enable-console-print!)
 
-(def app-state (atom {:counter 0}))
+(def app-state 
+  (atom 
+    {:app/title "Feeding time at the zoo"
+     :animals/list (into []
+                         (map-indexed 
+                           (fn [i v] [i v]) 
+                           ["Ant" "Bear" "Crocodile" "Dodo" "Elephant" "Fish" "Gorilla" "Hamster" "Iguana" "Jackal"]))}))
 
-(defn read
+(defmulti read (fn [_ key _] key))
+
+(defmethod read :default
   [{:keys [state] :as env} key params]
   (let [st @state]
     (if-let [[_ v] (find st key)]
       {:value v}
       {:value :not-found})))
 
-(defn mutate
-  [{:keys [state] :as env} key params]
-  (if (= 'increment key)
-    {:value [:counter]
-     :action #(swap! state update-in [:counter] inc)}
-    {:value :not-found}))
+(defmethod read :animals/list
+  [{:keys [state]} key {:keys [start end]}]
+  {:value (subvec (:animals/list @state) start end)})
 
-(defui Counter
+(defui AnimalList
+  static om/IQueryParams
+  (params
+    [this]
+    {:start 0 :end 10})
+
   static om/IQuery
   (query
     [this]
-    [:counter])
+    '[:app/title (:animals/list {:start ?start :end ?end})])
 
   Object
   (render
     [this]
-    (let [{:keys [counter]} (om/props this)]
+    (let [{:keys [app/title animals/list]} (om/props this)]
       (dom/div
         nil
-        (dom/span nil (str "Count: " counter))
-        (dom/button
-          #js {:onClick (fn [e]
-                          (om/transact! this '[(increment)]))}
-          "increment")))))
+        (dom/title nil title)
+        (apply dom/ul nil
+               (map (fn [[i name]]
+                      (dom/li nil (str i ". " name)))
+                    list))))))
 
 (def reconciler
   (om/reconciler
     {:state app-state
-     :parser (om/parser {:read read :mutate mutate})}))
+     :parser (om/parser {:read read})}))
 
 (om/add-root! 
   reconciler
-  Counter
+  AnimalList
   (js/document.getElementById "app"))
+
+(println (om/get-query (om/class->any reconciler AnimalList)))
+
+#_(om/set-params!
+    (om/class->any reconciler AnimalList)
+    {:start 0 :end 5})
+
+#_(reset! app-state 
+          (om/from-history 
+            reconciler 
+            (-> reconciler :config :history (.-arr) last))) ; this is NOT safe!
 
 (defn on-js-reload []
   ;; optionally touch your app-state to force rerendering depending on
