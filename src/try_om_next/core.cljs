@@ -36,7 +36,7 @@
                     [:person/by-name name :points]
                     inc))})
 
-(defmethod mutate 'point/dec
+(defmethod mutate 'points/dec
   [{:keys [state]} _ {:keys [name]}]
   {:action (fn []
              (swap! state update-in
@@ -57,34 +57,60 @@
   Object
   (render
     [this]
-    (comment 'TODO)))
+    (let [{:keys [points name foo] :as props} (om/props this)]
+      (dom/li 
+        nil
+        (dom/label
+          nil
+          (str name ", points: " points))
+        (dom/button
+          #js {:onClick
+               (fn [e]
+                 (om/transact! this `[(points/inc ~props)]))}
+          "+")
+        (dom/button
+          #js {:onClick
+               (fn [e]
+                 (om/transact! this `[(points/dec ~props)]))}
+          "-")))))
+
+(def person (om/factory Person {:keyfn :name}))
+
+(defui ListView
+  Object
+  (render
+    [this]
+    (let [list (om/props this)]
+      (apply dom/ul nil
+             (map person list)))))
+
+(def list-view (om/factory ListView))
 
 (defui RootView
   static om/IQuery
   (query
     [this]
     (let [subquery (om/get-query Person)]
-      `[{:list/one ~subquery} {:list/two ~subquery}])))
+      `[{:list/one ~subquery} {:list/two ~subquery}]))
+
+  Object
+  (render
+    [this]
+    (let [{:keys [list/one list/two]} (om/props this)]
+      (apply dom/div nil
+             [(dom/h2 nil "List One")
+              (list-view one)
+              (dom/h2 nil "List Two")
+              (list-view two)]))))
 
 (def norm-data 
   (om/normalize RootView init-data true))
 
-#_(-> Person om.next/get-query meta)
-
-(def parser
-  (om/parser {:read read :mutate mutate}))
-
-(def app-state
-  (atom norm-data))
-
-#_(parser {:state app-state} '[:list/one])
-#_(parser {:state app-state} '[(points/inc {:name "A"})])
-#_(parser {:state app-state} '[:list/one])
-#_(parser {:state app-state} '[:list/two])
-
-#_(def reconciler
+(def reconciler
   (om/reconciler {:state init-data
                   :parser (om/parser {:read read :mutate mutate})}))
+
+(om/add-root! reconciler RootView (js/document.getElementById "app"))
 
 (defn on-js-reload []
   ;; optionally touch your app-state to force rerendering depending on
