@@ -27,6 +27,22 @@
   [{:keys [state] :as env} key params]
   {:value (get-people state key)})
 
+(defmulti mutate om/dispatch)
+
+(defmethod mutate 'points/inc
+  [{:keys [state]} _ {:keys [name]}]
+  {:action (fn []
+             (swap! state update-in
+                    [:person/by-name name :points]
+                    inc))})
+
+(defmethod mutate 'point/dec
+  [{:keys [state]} _ {:keys [name]}]
+  {:action (fn []
+             (swap! state update-in
+                    [:person/by-name name :points]
+                    #(let [n (dec %)] (if (neg? n) 0 n))))})
+
 (defui Person
   static om/Ident
   (ident
@@ -56,9 +72,15 @@
 #_(-> Person om.next/get-query meta)
 
 (def parser
-  (om/parser {:read read}))
+  (om/parser {:read read :mutate mutate}))
 
-#_(parser {:state (atom norm-data)} '[:list/one])
+(def app-state
+  (atom norm-data))
+
+#_(parser {:state app-state} '[:list/one])
+#_(parser {:state app-state} '[(points/inc {:name "A"})])
+#_(parser {:state app-state} '[:list/one])
+#_(parser {:state app-state} '[:list/two])
 
 #_(def reconciler
   (om/reconciler {:state init-data
