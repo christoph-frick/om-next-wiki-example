@@ -4,70 +4,65 @@
 
 (enable-console-print!)
 
-(def app-state 
-  (atom 
-    {:app/title "Feeding time at the zoo"
-     :animals/list (into []
-                         (map-indexed 
-                           (fn [i v] [i v]) 
-                           ["Ant" "Bear" "Crocodile" "Dodo" "Elephant" "Fish" "Gorilla" "Hamster" "Iguana" "Jackal"]))}))
+(def init-data
+  {:list/one [{:name "A" :points 0}  
+              {:name "B" :points 0}  
+              {:name "C" :points 0}]
+   :list/two [{:name "A" :points 0 :age 27}  
+              {:name "D" :points 0}  
+              {:name "E" :points 0}]})
 
-(defmulti read (fn [_ key _] key))
+(defmulti read om/dispatch)
 
-(defmethod read :default
-  [{:keys [state] :as env} key params]
+(defn get-people
+  [state key]
   (let [st @state]
-    (if-let [[_ v] (find st key)]
-      {:value v}
-      {:value :not-found})))
+    (into [] (map #(get-in st %)) (get st key))))
 
-(defmethod read :animals/list
-  [{:keys [state]} key {:keys [start end]}]
-  {:value (subvec (:animals/list @state) start end)})
+(defmethod read :list/one
+  [{:keys [state] :as env} key params]
+  {:value (get-people state key)})
 
-(defui AnimalList
-  static om/IQueryParams
-  (params
-    [this]
-    {:start 0 :end 10})
+(defmethod read :list/two
+  [{:keys [state] :as env} key params]
+  {:value (get-people state key)})
+
+(defui Person
+  static om/Ident
+  (ident
+    [this {:keys [name]}]
+    [:person/by-name name])
 
   static om/IQuery
-  (query
+  (query 
     [this]
-    '[:app/title (:animals/list {:start ?start :end ?end})])
+    '[:name :points :age])
 
   Object
   (render
     [this]
-    (let [{:keys [app/title animals/list]} (om/props this)]
-      (dom/div
-        nil
-        (dom/title nil title)
-        (apply dom/ul nil
-               (map (fn [[i name]]
-                      (dom/li nil (str i ". " name)))
-                    list))))))
+    (comment 'TODO)))
 
-(def reconciler
-  (om/reconciler
-    {:state app-state
-     :parser (om/parser {:read read})}))
+(defui RootView
+  static om/IQuery
+  (query
+    [this]
+    (let [subquery (om/get-query Person)]
+      `[{:list/one ~subquery} {:list/two ~subquery}])))
 
-(om/add-root! 
-  reconciler
-  AnimalList
-  (js/document.getElementById "app"))
+(def norm-data 
+  (om/normalize RootView init-data true))
 
-(println (om/get-query (om/class->any reconciler AnimalList)))
+#_(-> Person om.next/get-query meta)
 
-#_(om/set-params!
-    (om/class->any reconciler AnimalList)
-    {:start 0 :end 5})
+(def parser
+  (om/parser {:read read}))
 
-#_(reset! app-state 
-          (om/from-history 
-            reconciler 
-            (-> reconciler :config :history (.-arr) last))) ; this is NOT safe!
+#_(parser {:state (atom norm-data)} '[:list/one])
+
+#_(def reconciler
+  (om/reconciler {:state init-data
+                  :parser (om/parser {:read read :mutate mutate})}))
 
 (defn on-js-reload []
   ;; optionally touch your app-state to force rerendering depending on
